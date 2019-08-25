@@ -138,18 +138,19 @@ namespace GitTfs.Commands
                 _globals.Repository.SetConfig(GitTfsConstants.IgnoreBranchesRegex, IgnoreBranchesRegex);
             _globals.Repository.SetConfig(GitTfsConstants.IgnoreNotInitBranches, IgnoreNotInitBranches);
 
-            var remotesToFetch = GetRemotesToFetch(args).ToList();
+            var onlyLatest = true;
+            var remotesToFetch = GetRemotesToFetch(args.Except(new[] { "-onlyLatest" }).ToArray()).ToList();
             foreach (var remote in remotesToFetch)
             {
-                FetchRemote(stopOnFailMergeCommit, remote);
+                FetchRemote(onlyLatest, stopOnFailMergeCommit, remote);
             }
             return 0;
         }
 
-        private void FetchRemote(bool stopOnFailMergeCommit, IGitTfsRemote remote)
+        private void FetchRemote(bool onlyGetLastChangeset, bool stopOnFailMergeCommit, IGitTfsRemote remote)
         {
             Trace.TraceInformation("Fetching from TFS remote '{0}'...", remote.Id);
-            DoFetch(remote, stopOnFailMergeCommit);
+            DoFetch(onlyGetLastChangeset, remote, stopOnFailMergeCommit);
             if (_labels != null && FetchLabels)
             {
                 Trace.TraceInformation("Fetching labels from TFS remote '{0}'...", remote.Id);
@@ -157,7 +158,7 @@ namespace GitTfs.Commands
             }
         }
 
-        protected virtual void DoFetch(IGitTfsRemote remote, bool stopOnFailMergeCommit)
+        protected virtual void DoFetch(bool onlyGetLastChangeset, IGitTfsRemote remote, bool stopOnFailMergeCommit)
         {
             if (upToChangeSet != -1 && InitialChangeset.HasValue && InitialChangeset.Value > upToChangeSet)
                 throw new GitTfsException("error: up-to changeset # must not be less than the initial one");
@@ -203,11 +204,11 @@ namespace GitTfs.Commands
                     _properties.InitialChangeset = InitialChangeset.Value;
                     _properties.PersistAllOverrides();
                     remote.QuickFetch(InitialChangeset.Value, IgnoreRestrictedChangesets);
-                    remote.Fetch(stopOnFailMergeCommit, upToChangeSet);
+                    remote.Fetch(onlyGetLastChangeset, stopOnFailMergeCommit, upToChangeSet);
                 }
                 else
                 {
-                    remote.Fetch(stopOnFailMergeCommit, upToChangeSet);
+                    remote.Fetch(onlyGetLastChangeset, stopOnFailMergeCommit, upToChangeSet);
                 }
             }
             finally

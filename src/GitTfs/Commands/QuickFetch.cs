@@ -18,7 +18,7 @@ namespace GitTfs.Commands
             _properties = properties;
         }
 
-        protected override void DoFetch(IGitTfsRemote remote, bool stopOnFailMergeCommit)
+        protected override void DoFetch(bool onlyGetLastChangeset, IGitTfsRemote remote, bool stopOnFailMergeCommit)
         {
             if (InitialChangeset.HasValue)
                 remote.QuickFetch(InitialChangeset.Value, false, false);

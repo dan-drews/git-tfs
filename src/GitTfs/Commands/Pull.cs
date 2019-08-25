@@ -37,7 +37,6 @@ namespace GitTfs.Commands
         public int Run(string remoteId)
         {
             var retVal = _fetch.Run(remoteId);
-
             if (retVal == 0)
             {
                 var remote = _globals.Repository.ReadTfsRemote(remoteId);

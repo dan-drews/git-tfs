@@ -337,17 +337,17 @@ namespace GitTfs.Core
             public string LastParentCommitBeforeRename { get; set; }
         }
 
-        public IFetchResult Fetch(bool stopOnFailMergeCommit = false, int lastChangesetIdToFetch = -1, IRenameResult renameResult = null)
+        public IFetchResult Fetch(bool onlyGetLastChangeset, bool stopOnFailMergeCommit = false, int lastChangesetIdToFetch = -1, IRenameResult renameResult = null)
         {
-            return FetchWithMerge(-1, stopOnFailMergeCommit, lastChangesetIdToFetch, renameResult);
+            return FetchWithMerge(onlyGetLastChangeset, -1, stopOnFailMergeCommit, lastChangesetIdToFetch, renameResult);
         }
 
-        public IFetchResult FetchWithMerge(int mergeChangesetId, bool stopOnFailMergeCommit = false, IRenameResult renameResult = null, params string[] parentCommitsHashes)
+        public IFetchResult FetchWithMerge(bool onlyGetLastChangeset, int mergeChangesetId, bool stopOnFailMergeCommit = false, IRenameResult renameResult = null, params string[] parentCommitsHashes)
         {
-            return FetchWithMerge(mergeChangesetId, stopOnFailMergeCommit, -1, renameResult, parentCommitsHashes);
+            return FetchWithMerge(onlyGetLastChangeset, mergeChangesetId, stopOnFailMergeCommit, -1, renameResult, parentCommitsHashes);
         }
 
-        public IFetchResult FetchWithMerge(int mergeChangesetId, bool stopOnFailMergeCommit = false, int lastChangesetIdToFetch = -1, IRenameResult renameResult = null, params string[] parentCommitsHashes)
+        public IFetchResult FetchWithMerge(bool onlyGetLastChangeset, int mergeChangesetId, bool stopOnFailMergeCommit = false, int lastChangesetIdToFetch = -1, IRenameResult renameResult = null, params string[] parentCommitsHashes)
         {
             var fetchResult = new FetchResult { IsSuccess = true, NewChangesetCount = 0 };
             var latestChangesetId = GetLatestChangesetId();
@@ -362,6 +362,8 @@ namespace GitTfs.Core
             {
                 var fetchedChangesets = FetchChangesets(true, lastChangesetIdToFetch);
 
+                ITfsChangeset last = null;
+                LogEntry lastLog = null;
                 var objects = BuildEntryDictionary();
                 fetchRetrievedChangesets = false;
                 foreach (var changeset in fetchedChangesets)
@@ -372,7 +374,7 @@ namespace GitTfs.Core
                     if (lastChangesetIdToFetch > 0 && changeset.Summary.ChangesetId > lastChangesetIdToFetch)
                         return fetchResult;
                     string parentCommitSha = null;
-                    if (changeset.IsMergeChangeset && !ProcessMergeChangeset(changeset, stopOnFailMergeCommit, ref parentCommitSha))
+                    if (changeset.IsMergeChangeset && !ProcessMergeChangeset(onlyGetLastChangeset, changeset, stopOnFailMergeCommit, ref parentCommitSha))
                     {
                         fetchResult.NewChangesetCount--; // Merge wasn't successful - so don't count the changeset we found
                         fetchResult.IsSuccess = false;
@@ -399,13 +401,30 @@ namespace GitTfs.Core
                         foreach (var parent in parentCommitsHashes)
                             log.CommitParents.Add(parent);
                     }
-                    var commitSha = ProcessChangeset(changeset, log);
-                    fetchResult.LastFetchedChangesetId = changeset.Summary.ChangesetId;
+                    if (!onlyGetLastChangeset)
+                    {
+                        var commitSha = ProcessChangeset(changeset, log);
+                        fetchResult.LastFetchedChangesetId = changeset.Summary.ChangesetId;
+                        // set commit sha for added git objects
+                        foreach (var commit in objects)
+                        {
+                            if (commit.Value.Commit == null)
+                                commit.Value.Commit = commitSha;
+                        }
+                        DoGcIfNeeded();
+                    }
+                    lastLog = log;
+                    last = changeset;
+                }
+                if (onlyGetLastChangeset)
+                {
+                    var commitSha1 = ProcessChangeset(last, lastLog);
+                    fetchResult.LastFetchedChangesetId = last.Summary.ChangesetId;
                     // set commit sha for added git objects
                     foreach (var commit in objects)
                     {
                         if (commit.Value.Commit == null)
-                            commit.Value.Commit = commitSha;
+                            commit.Value.Commit = commitSha1;
                     }
                     DoGcIfNeeded();
                 }
@@ -419,7 +438,7 @@ namespace GitTfs.Core
             return new Dictionary<string, GitObject>(StringComparer.InvariantCultureIgnoreCase);
         }
 
-        private bool ProcessMergeChangeset(ITfsChangeset changeset, bool stopOnFailMergeCommit, ref string parentCommit)
+        private bool ProcessMergeChangeset(bool onlyGetLastChangeset, ITfsChangeset changeset, bool stopOnFailMergeCommit, ref string parentCommit)
         {
             if (!Tfs.CanGetBranchInformation)
             {
@@ -443,7 +462,7 @@ namespace GitTfs.Core
                 if (shaParent == null)
                 {
                     string omittedParentBranch;
-                    shaParent = FindMergedRemoteAndFetch(parentChangesetId, stopOnFailMergeCommit, out omittedParentBranch);
+                    shaParent = FindMergedRemoteAndFetch(onlyGetLastChangeset, parentChangesetId, stopOnFailMergeCommit, out omittedParentBranch);
                     changeset.OmittedParentBranch = omittedParentBranch;
                 }
                 if (shaParent != null)
@@ -573,27 +592,27 @@ namespace GitTfs.Core
             return workItemsTranslated;
         }
 
-        private string FindRootRemoteAndFetch(int parentChangesetId, IRenameResult renameResult = null)
+        private string FindRootRemoteAndFetch(bool onlyGetLastChangeset, int parentChangesetId, IRenameResult renameResult = null)
         {
             string omittedParentBranch;
-            return FindRemoteAndFetch(parentChangesetId, false, false, renameResult, out omittedParentBranch);
+            return FindRemoteAndFetch(onlyGetLastChangeset, parentChangesetId, false, false, renameResult, out omittedParentBranch);
         }
 
-        private string FindMergedRemoteAndFetch(int parentChangesetId, bool stopOnFailMergeCommit, out string omittedParentBranch)
+        private string FindMergedRemoteAndFetch(bool onlyGetLastChangeset, int parentChangesetId, bool stopOnFailMergeCommit, out string omittedParentBranch)
         {
-            return FindRemoteAndFetch(parentChangesetId, false, true, null, out omittedParentBranch);
+            return FindRemoteAndFetch(onlyGetLastChangeset, parentChangesetId, false, true, null, out omittedParentBranch);
         }
 
-        private string FindRemoteAndFetch(int parentChangesetId, bool stopOnFailMergeCommit, bool mergeChangeset, IRenameResult renameResult, out string omittedParentBranch)
+        private string FindRemoteAndFetch(bool onlyGetLastChangeset, int parentChangesetId, bool stopOnFailMergeCommit, bool mergeChangeset, IRenameResult renameResult, out string omittedParentBranch)
         {
-            var tfsRemote = FindOrInitTfsRemoteOfChangeset(parentChangesetId, mergeChangeset, renameResult, out omittedParentBranch);
+            var tfsRemote = FindOrInitTfsRemoteOfChangeset(onlyGetLastChangeset, parentChangesetId, mergeChangeset, renameResult, out omittedParentBranch);
 
             if (tfsRemote != null && string.Compare(tfsRemote.TfsRepositoryPath, TfsRepositoryPath, StringComparison.InvariantCultureIgnoreCase) != 0)
             {
                 Trace.TraceInformation("\tFetching from dependent TFS remote '{0}'...", tfsRemote.Id);
                 try
                 {
-                    var fetchResult = ((GitTfsRemote)tfsRemote).FetchWithMerge(-1, stopOnFailMergeCommit, parentChangesetId, renameResult);
+                    var fetchResult = ((GitTfsRemote)tfsRemote).FetchWithMerge(onlyGetLastChangeset, -1, stopOnFailMergeCommit, parentChangesetId, renameResult);
                 }
                 finally
                 {
@@ -608,7 +627,7 @@ namespace GitTfs.Core
             return null;
         }
 
-        private IGitTfsRemote FindOrInitTfsRemoteOfChangeset(int parentChangesetId, bool mergeChangeset, IRenameResult renameResult, out string omittedParentBranch)
+        private IGitTfsRemote FindOrInitTfsRemoteOfChangeset(bool onlyGetLastChangeset, int parentChangesetId, bool mergeChangeset, IRenameResult renameResult, out string omittedParentBranch)
         {
             omittedParentBranch = null;
             IGitTfsRemote tfsRemote;
@@ -661,7 +680,7 @@ namespace GitTfs.Core
                 }
                 else
                 {
-                    tfsRemote = InitTfsRemoteOfChangeset(tfsBranch, parentChangeset.ChangesetId, renameResult);
+                    tfsRemote = InitTfsRemoteOfChangeset(onlyGetLastChangeset, tfsBranch, parentChangeset.ChangesetId, renameResult);
                     if (tfsRemote == null)
                         omittedParentBranch = tfsBranch.Path + ";C" + parentChangesetId;
                 }
@@ -669,7 +688,7 @@ namespace GitTfs.Core
             return tfsRemote;
         }
 
-        private IGitTfsRemote InitTfsRemoteOfChangeset(IBranchObject tfsBranch, int parentChangesetId, IRenameResult renameResult = null)
+        private IGitTfsRemote InitTfsRemoteOfChangeset(bool onlyGetLastChangeset, IBranchObject tfsBranch, int parentChangesetId, IRenameResult renameResult = null)
         {
             if (tfsBranch.IsRoot)
             {
@@ -694,7 +713,7 @@ namespace GitTfs.Core
                 {
                     try
                     {
-                        remote.Fetch(renameResult: renameResult);
+                        remote.Fetch(onlyGetLastChangeset, renameResult: renameResult);
                     }
                     finally
                     {
@@ -1049,7 +1068,7 @@ namespace GitTfs.Core
                 {
                     try
                     {
-                        sha1RootCommit = FindRootRemoteAndFetch(rootChangesetId, renameResult);
+                        sha1RootCommit = FindRootRemoteAndFetch(false, rootChangesetId, renameResult);
                     }
                     catch (Exception ex)
                     {

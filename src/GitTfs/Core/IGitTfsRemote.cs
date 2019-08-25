@@ -59,8 +59,8 @@ namespace GitTfs.Core
         bool ShouldSkip(string path);
         IGitTfsRemote InitBranch(RemoteOptions remoteOptions, string tfsRepositoryPath, int rootChangesetId = -1, bool fetchParentBranch = false, string gitBranchNameExpected = null, IRenameResult renameResult = null);
         string GetPathInGitRepo(string tfsPath);
-        IFetchResult Fetch(bool stopOnFailMergeCommit = false, int lastChangesetIdToFetch = -1, IRenameResult renameResult = null);
-        IFetchResult FetchWithMerge(int mergeChangesetId, bool stopOnFailMergeCommit = false, IRenameResult renameResult = null, params string[] parentCommitsHashes);
+        IFetchResult Fetch(bool onlyGetLastChangeset, bool stopOnFailMergeCommit = false, int lastChangesetIdToFetch = -1, IRenameResult renameResult = null);
+        IFetchResult FetchWithMerge(bool onlyGetLastChangeset, int mergeChangesetId, bool stopOnFailMergeCommit = false, IRenameResult renameResult = null, params string[] parentCommitsHashes);
         void QuickFetch(int changesetId, bool ignoreRestricted, bool printRestrictionHint = true);
         void Unshelve(string shelvesetOwner, string shelvesetName, string destinationBranch, Action<Exception> ignorableErrorHandler, bool force);
         void Shelve(string shelvesetName, string treeish, TfsChangesetInfo parentChangeset, CheckinOptions options, bool evaluateCheckinPolicies);
@@ -83,9 +83,9 @@ namespace GitTfs.Core
 
     public static class IGitTfsRemoteExt
     {
-        public static IFetchResult FetchWithMerge(this IGitTfsRemote remote, int mergeChangesetId, bool stopOnFailMergeCommit = false, params string[] parentCommitsHashes)
+        public static IFetchResult FetchWithMerge(this IGitTfsRemote remote, bool onlyGetLastChangeset, int mergeChangesetId, bool stopOnFailMergeCommit = false, params string[] parentCommitsHashes)
         {
-            return remote.FetchWithMerge(mergeChangesetId, stopOnFailMergeCommit, null, parentCommitsHashes);
+            return remote.FetchWithMerge(onlyGetLastChangeset, mergeChangesetId, stopOnFailMergeCommit, null, parentCommitsHashes);
         }
     }
 }

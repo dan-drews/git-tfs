@@ -80,7 +80,7 @@ namespace GitTfs.Commands
 
             // get latest changes from TFS to minimize possibility of late conflict
             Trace.TraceInformation("Fetching changes from TFS to minimize possibility of late conflict...");
-            parentChangeset.Remote.Fetch();
+            parentChangeset.Remote.Fetch(false);
             if (parentChangeset.ChangesetId != parentChangeset.Remote.MaxChangesetId)
             {
                 if (AutoRebase)
@@ -136,7 +136,7 @@ namespace GitTfs.Commands
                 try
                 {
                     newChangesetId = tfsRemote.Checkin(target, currentParent, parentChangeset, commitSpecificCheckinOptions, tfsRepositoryPathOfMergedBranch);
-                    var fetchResult = tfsRemote.FetchWithMerge(newChangesetId, false, parents.Select(c => c.Sha).ToArray());
+                    var fetchResult = tfsRemote.FetchWithMerge(false, newChangesetId, false, parents.Select(c => c.Sha).ToArray());
                     if (fetchResult.NewChangesetCount != 1)
                     {
                         var lastCommit = _globals.Repository.FindCommitHashByChangesetId(newChangesetId);

@@ -215,12 +215,12 @@ namespace GitTfs.Core
             throw DerivedRemoteException;
         }
 
-        public IFetchResult Fetch(bool stopOnFailMergeCommit = false, int lastChangesetIdToFetch = -1, IRenameResult renameResult = null)
+        public IFetchResult Fetch(bool onlyGetLastChangeset, bool stopOnFailMergeCommit = false, int lastChangesetIdToFetch = -1, IRenameResult renameResult = null)
         {
             throw DerivedRemoteException;
         }
 
-        public IFetchResult FetchWithMerge(int mergeChangesetId, bool stopOnFailMergeCommit = false, IRenameResult renameResult = null, params string[] parentCommitsHashes)
+        public IFetchResult FetchWithMerge(bool onlyGetLastChangeset, int mergeChangesetId, bool stopOnFailMergeCommit = false, IRenameResult renameResult = null, params string[] parentCommitsHashes)
         {
             throw DerivedRemoteException;
         }
