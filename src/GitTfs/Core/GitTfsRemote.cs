@@ -361,7 +361,8 @@ namespace GitTfs.Core
             do
             {
                 var fetchedChangesets = FetchChangesets(true, lastChangesetIdToFetch);
-
+                ITfsChangeset lastChangeset = null;
+                LogEntry lastLog = null;
                 var objects = BuildEntryDictionary();
                 fetchRetrievedChangesets = false;
                 foreach (var changeset in fetchedChangesets)
@@ -399,16 +400,18 @@ namespace GitTfs.Core
                         foreach (var parent in parentCommitsHashes)
                             log.CommitParents.Add(parent);
                     }
-                    var commitSha = ProcessChangeset(changeset, log);
-                    fetchResult.LastFetchedChangesetId = changeset.Summary.ChangesetId;
-                    // set commit sha for added git objects
-                    foreach (var commit in objects)
-                    {
-                        if (commit.Value.Commit == null)
-                            commit.Value.Commit = commitSha;
-                    }
-                    DoGcIfNeeded();
+                    lastChangeset = changeset;
+                    lastLog = log;
                 }
+                var commitSha = ProcessChangeset(lastChangeset, lastLog);
+                fetchResult.LastFetchedChangesetId = lastChangeset.Summary.ChangesetId;
+                // set commit sha for added git objects
+                foreach (var commit in objects)
+                {
+                    if (commit.Value.Commit == null)
+                        commit.Value.Commit = commitSha;
+                }
+                DoGcIfNeeded();
             } while (fetchRetrievedChangesets && latestChangesetId > fetchResult.LastFetchedChangesetId);
             return fetchResult;
         }
